@@ -1,0 +1,145 @@
+---
+title: "ASSIGNMENT3"
+author: "deepak"
+date: "2023-10-15"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(lattice)
+library(dplyr)
+library(readr)
+library(caret)
+library(dplyr)
+library(knitr)
+library(e1071)
+library(class)
+library(ISLR)
+library(reshape2)
+library(data.table)
+#library(tydir)
+```
+#Importing Data set 
+```{r}
+#importing Data set and converting 
+getwd()
+UB<-read.csv("C:/Users/durga/Downloads/UniversalBank.csv")
+#summarize the Data
+str(UB)
+head(UB)
+```
+#Checking for Missing Values
+```{r}
+colMeans(is.na(UB))  
+```
+#Converting & Summary online variables
+```{r}
+DF_UB<-UB%>% select(Age,Experience,Income,Family,CCAvg,Education,Mortgage,Personal.Loan,Securities.Account,CD.Account,Online,CreditCard)
+
+DF_UB$CreditCard <- as.factor(DF_UB$CreditCard)
+summary(DF_UB$CreditCard)
+is.factor(DF_UB$CreditCard)
+
+
+DF_UB$Personal.Loan <- as.factor((DF_UB$Personal.Loan))
+summary(DF_UB$Personal.Loan)
+is.factor(DF_UB$Personal.Loan)
+
+
+DF_UB$Online <- as.factor(DF_UB$Online)
+summary(DF_UB$Online)
+is.factor(DF_UB$Online)
+```
+#split data 60% Training and 40%  validation
+```{r}
+selected.var <- c(8,11,12)
+set.seed(1)
+Train_Index = createDataPartition(DF_UB$Personal.Loan, p=0.60, list=FALSE) 
+Train_Data = DF_UB[Train_Index,selected.var]
+Validation_Data = DF_UB[-Train_Index,selected.var]
+```
+#A.Pivot Table for credit card, Loan & Online
+```{r}
+attach(Train_Data)
+ftable(CreditCard,Personal.Loan,Online)
+detach(Train_Data)
+```
+The pivot table is now created with online as a column, Credit Card and LOAN as rows.
+#B) (probability not using Naive Bayes)
+ With Online=1 and Credit Card=1, we can calculate the likelihood that Loan=1 by , we add 52(Loan=1 from ftable) and 503(Loan=0 from ftable) which gives us 555. 
+             Probability= 52/555 = 0.09369 or 9.36%  . 
+             Hence the probability is 9.36%
+```{r}
+prop.table(ftable(Train_Data$CreditCard,Train_Data$Online,Train_Data$Personal.Loan),margin=1)
+```
+The above table shows chances of geting a loan if you have a credit card and you apply online
+
+#C.pivot table between personal loan and online , personal loan & credit card
+```{r}
+attach(Train_Data)
+ftable(Personal.Loan,Online)
+ftable(Personal.Loan,CreditCard)
+detach(Train_Data)
+```
+The two pivot tables of above written as follows
+        1.In First pivot table: Online as a column & personal loan as row
+        2.In second Pivot table: Credit card as column & personal row as row
+        
+#D Propotion Pivot table
+```{r}
+prop.table(ftable(Train_Data$Personal.Loan,Train_Data$CreditCard),margin=1)
+prop.table(ftable(Train_Data$Personal.Loan,Train_Data$Online),margin=1)
+```
+The code above displays a proportion pivot table that can assist in answering question D.
+D1) 91/288 = 0.3159 or 31.59%  
+D2) 172/288 = 0.5972 or 59.72%
+D3) total loans= 1 from table (288) is now divided by total count from table (3000) = 0.096 or 9.6%
+D4) 806/2712 = 0.2971 or 29.71%
+D5) 1629/2712 = 0.6006 or 60.06%
+D6) total loans=0 from table(2712) which is divided by total count from table (3000) = 0.904 or 90.4%
+
+#E)Naive Bayes calculation
+    (0.3159 * 0.5972 * 0.096)/[(0.3159 * 0.5972 * 0.096)+(0.2971 * 0.6006 * 0.904)]
+    = 0.0528913646 or 5.29%
+
+#F) Compare this value with the one obtained from the pivot table in (B). Which is a more accurate estimate?
+ While E uses probability for each of the counts, B does a direct computation based on a count. As a result, B is more exact, but E is best for broad generality.
+
+##G)Which of the entries in this table are needed for computing P(Loan = 1 | CC = 1, Online = 1)?Run naive Bayes on the data. Examine the model output on training data, and find the entrythat corresponds to P(Loan = 1 | CC = 1, Online = 1). Compare this to the number you obtained in (E).
+
+```{r}
+Universal.nb <- naiveBayes(Personal.Loan ~ ., data = Train_Data)
+Universal.nb
+```
+While understanding how you're computing P(LOAN=1|CC=1,Online=1) using the Naive Bayes model is made straightforward by utilizing the two tables created in step C, you can also rapidly compute P(LOAN=1|CC=1,Online=1) using the pivot table created in step B.
+
+
+#NB confusion matrix for Train_Data
+```{r}
+pred.class <- predict(Universal.nb, newdata = Train_Data)
+confusionMatrix(pred.class, Train_Data$Personal.Loan)
+```
+
+##Validation set
+```{r}
+pred.prob <- predict(Universal.nb, newdata=Validation_Data, type="raw")
+pred.class <- predict(Universal.nb, newdata = Validation_Data)
+confusionMatrix(pred.class, Validation_Data$Personal.Loan)
+```
+
+#ROC
+```{r}
+library(pROC)
+roc(Validation_Data$Personal.Loan,pred.prob[,1])
+plot.roc(Validation_Data$Personal.Loan,pred.prob[,1],print.thres="best")
+```
+Setting a threshold of 0.906 improves the model by decreasing sensitivity to 0.464 and improving specificity to 0.576.
+```
